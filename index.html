@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <link rel="manifest" href="manifest.json">
+    <link rel="icon" type="image/png" href="/icons/icon-192x192.png">
+    <meta charset="UTF-8">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="Nome della tua app">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Business Manager</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <!-- Login Section -->
+    <div id="login-container">
+        <input type="password" id="password" placeholder="Inserisci la password">
+        <button id="login-button">Login</button>
+        <p id="login-error" class="hidden">Password errata!</p>
+    </div>
+
+    <!-- Main Section -->
+    <div id="main-container" class="hidden">
+        <nav>
+            <button onclick="showSection('items')">Oggetti</button>
+            <button onclick="showSection('stock')">Stock</button>
+            <button onclick="showSection('info')">Info</button>
+        </nav>
+
+        <!-- Items Section -->
+        <div id="items-section" class="section hidden">
+            <h2>Lista degli oggetti</h2>
+            <div id="item-list"></div>
+            <button id="confirm-button" class="hidden" onclick="confirmPurchase()">Conferma Acquisto</button>
+        </div>
+
+        <!-- Stock Section -->
+        <div id="stock-section" class="section hidden">
+            <h2>Stock Disponibile</h2>
+            <div id="stock-list"></div>
+        </div>
+
+        <!-- Info Section -->
+        <div id="info-section" class="section hidden">
+            <h2>Informazioni finanziarie</h2>
+            <div class="info-container">
+                <div class="info-box red">
+                    <h3>USCITE</h3>
+                    <p id="uscite-value">0 €</p>
+                </div>
+                <div class="info-box green">
+                    <h3>ENTRATE</h3>
+                    <p id="entrate-value">0 €</p>
+                </div>
+            </div>
+            <div class="balance-box">
+                <h3>BILANCIO</h3>
+                <p id="balance-value">0 €</p>
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="app.js"></script>
+</body>
+</html>
