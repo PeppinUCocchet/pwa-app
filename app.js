@@ -161,65 +161,82 @@ document.addEventListener("DOMContentLoaded", function() {
             const item = selectedItems[itemId];
             const itemDoc = doc(db, "oggetti", itemId);
     
-            totalPurchaseCost += item.prezzo * item.qty;
+            // Fetch the current stock from the database
+            const itemData = await getDoc(itemDoc);
+            if (itemData.exists()) {
+                const currentStock = itemData.data().stock;
     
-            await updateDoc(itemDoc, {
-                stock: item.stock - item.qty
-            });
+                // Calculate the total cost for this item
+                const itemTotalCost = item.prezzo * item.qty;
+                totalPurchaseCost += itemTotalCost;
     
-            // Verifica che l'elemento per l'aggiornamento esista
-            const qtyElement = document.getElementById(`${itemId}-qty`);
-            if (qtyElement) {
-                qtyElement.innerText = 0;
+            // Check if there is enough stock available
+                // Update the stock in the database by reducing it
+                await updateDoc(itemDoc, {
+                    stock: currentStock + item.qty // Update stock
+                });
+
+                // Update the UI element for quantity
+                const qtyElement = document.getElementById(`${itemId}-qty`);
+                if (qtyElement) {
+                    qtyElement.innerText = 0; // Reset the displayed quantity
+                }
+            } else {
+                alert("Articolo non trovato nel database.");
+                return; // Stop processing if the item is not found
             }
         }
     
+        // Update the balance with the total purchase cost
         await updateSaldo(totalPurchaseCost, 0);
     
+        // Reset selected items
         selectedItems = {};
         Object.keys(stock).forEach(itemId => {
-            stock[itemId].qty = 0;
+            stock[itemId].qty = 0; // Reset quantities in stock object
             const qtyElement = document.getElementById(`${itemId}-qty`);
             if (qtyElement) {
-                qtyElement.innerText = 0;
+                qtyElement.innerText = 0; // Reset UI element for quantities
             }
         });
     
         const confirmButton = document.getElementById("confirm-button");
         if (confirmButton) {
-            confirmButton.classList.add("hidden");
+            confirmButton.classList.add("hidden"); // Hide confirm button after purchase
         }
     
-        alert("Acquisto confermato!");
-        loadStockFromFirestore();
-    }
+        alert("Acquisto confermato!"); // Show confirmation message
+        loadStockFromFirestore(); // Reload stock from Firestore to update UI
+    };
+    
+    
     
 
     async function loadStockFromFirestore() {
         const querySnapshot = await getDocs(collection(db, "oggetti"));
         const stockList = document.getElementById("stock-list");
-        stockList.innerHTML = ""; 
+        stockList.innerHTML = ""; // Clear existing content
     
         const sortedItems = querySnapshot.docs.sort((a, b) => a.data().nome.localeCompare(b.data().nome));
     
         sortedItems.forEach((doc) => {
             const data = doc.data();
     
-            // Convertiamo prezzo in numero assicurandoci che sia valido
+            // Convert price to number ensuring it's valid
             let prezzo = parseFloat(data.prezzo);
             if (isNaN(prezzo)) {
-                prezzo = 0;  // Valore predefinito se il prezzo non è valido
+                prezzo = 0; // Default value if price is invalid
             }
     
-            // Verifica se esistono sia il nome che il prezzo
+            // Check if both name and price exist
             if (data.nome && !isNaN(prezzo)) {
                 const stockDiv = document.createElement("div");
                 stockDiv.classList.add("stock-item");
     
-                // Usiamo toFixed solo se prezzo è un numero
+                // Use toFixed only if price is a number and set a unique ID for the stock quantity
                 stockDiv.innerHTML = `
                     <h3>${data.nome}</h3>
-                    <p>Prezzo: ${prezzo.toFixed(2)} € | Quantità Stock: ${data.stock}</p>
+                    <p id="stock-${doc.id}">Prezzo: ${prezzo.toFixed(2)} € | Quantità Stock: ${data.stock}</p>
                     <button class="sell-button" onclick="showSellInput('${doc.id}', '${data.nome}')">Vendi</button>
                     <div id="sell-input-${doc.id}" class="hidden">
                         <input type="number" id="sell-price-${doc.id}" placeholder="Prezzo venduto" />
@@ -232,6 +249,7 @@ document.addEventListener("DOMContentLoaded", function() {
             }
         });
     }
+    
 
     window.showSellInput = function(itemId, itemName) {
         const sellInput = document.getElementById(`sell-input-${itemId}`);
@@ -239,14 +257,59 @@ document.addEventListener("DOMContentLoaded", function() {
     }
 
     window.confirmSell = async function(itemId) {
-        const sellPrice = document.getElementById(`sell-price-${itemId}`).value;
-        if (sellPrice) {
-            await updateSaldo(0, parseFloat(sellPrice));
-            alert(`Hai venduto l'articolo per ${sellPrice} €`);
-        } else {
-            alert("Inserisci un prezzo di vendita valido.");
+        const sellPriceInput = document.getElementById(`sell-price-${itemId}`).value; // Get the entered sell price
+        const sellPrice = parseFloat(sellPriceInput); // Convert the sell price to a float
+        if (isNaN(sellPrice)) { // Check if it's a valid number
+            alert("Inserisci un prezzo di vendita valido."); // Alert if invalid
+            return;
         }
-    }
+    
+        const itemDoc = doc(db, "oggetti", itemId); // Get the document reference for the item
+        const itemData = await getDoc(itemDoc); // Fetch the item data
+    
+        if (itemData.exists()) { // Check if the item exists
+            const itemStock = itemData.data().stock; // Get the current stock
+            let itemPrezzo = itemData.data().prezzo; // Get the price from the document
+    
+            // Log the price for debugging
+            console.log(`Prezzo originale: ${itemPrezzo}, Tipo: ${typeof itemPrezzo}`);
+    
+            // Ensure itemPrezzo is a number
+            if (typeof itemPrezzo === 'string') {
+                itemPrezzo = parseFloat(itemPrezzo); // Convert from string to number if necessary
+            }
+    
+            // Check if itemPrezzo is still not a number
+            if (isNaN(itemPrezzo)) {
+                itemPrezzo = 0; // Default value if still not a valid number
+            }
+    
+            // Check if there are units in stock before selling
+            if (itemStock > 0) {
+                // Update the document in Firestore to reduce stock by 1
+                await updateDoc(itemDoc, {
+                    stock: itemStock - 1
+                });
+    
+                // Update the balance with the sell price
+                await updateSaldo(0, sellPrice); 
+    
+                // Update the UI immediately
+                const stockElement = document.querySelector(`#stock-${itemId}`);
+                if (stockElement) {
+                    stockElement.innerText = `Prezzo: ${itemPrezzo.toFixed(2)} € | Quantità Stock: ${itemStock - 1}`; // Update stock display
+                }
+    
+                alert(`Hai venduto l'articolo per ${sellPrice} €`); // Confirmation message
+            } else {
+                alert("Stock insufficiente per la vendita."); // Alert if insufficient stock
+            }
+        } else {
+            alert("Articolo non trovato."); // Alert if the item does not exist
+        }
+    };
+    
+       
 });
 
 // Navigation between sections
